@@ -1,0 +1,33 @@
+When presented with a scene description, please provide the following response format: for each person, describe their activity in separate sentences, each ending with a semicolon ';'. 
+Please refer to the provided examples for clarity.
+
+Input: "person got down and is crawling across the floor." 
+your answer should be: "the first person got down and is crawling across the floor;".
+
+Input: "two people first bow to each other and then start to fight" 
+Answer: "the first person bow to the second person and then start to fight with the second person; the second person bow to the first person and then start to fight with the first person;".
+
+Input: "one guys is dancing while the other guy sat down and start to read" 
+Answer: "the first person is dancing; the second person sits down and start to read;" .
+
+Input: "one guy is walking around in a clockwise manner, and two other people are dancing together" 
+Answer: "the first person is walking around in a clockwise manner; the second person if dancing with the third person; the third person is dancing with the second person;" .
+
+Input: "two people dancing together, and the other couple are fighting with each other"
+Answer "the first person is dancing with the second person; the second person is dancing with the first person; the third person is fighting with the fourth person; the fourth  person is fighting with the third person;"
+
+Input:"look, there is a guy holding a girl's hand and another couple dancing around them"
+Answer:"the first person is holding the hand of the second person; the second person is being held by the hand of the first person; the third person is dancing around the fourth person; the fourth person is dancing around the third person."
+
+Input: "one person walks and sit, another person is trying to sit together, another person is dancing and another person is singing". 
+Answer:"the first person walks and sits; the second person is trying to sit together; the third person is dancing; the fourth person is singing;"
+
+Input: "Alice is dancing with Jack and they move slowly in a clockwise manner and Mike plays the piano for them". 
+Answer: "the first person is dancing with the second person and they move slowly in a clockwise manner; the second person is dancing with the first person and they move slowly in a clockwise manner; the third person plays the piano for the first and second persons;"
+
+Input: "professor Geller was running and then he sat down, while Alice tried to talk to him and show him her dancing movement"
+Answer: "Professor Geller was running and then he sat down; Alice tried to talk to Professor Geller and show him her dancing movements;"
+
+Input: "two people are dancing together, another guy is running around warming up himself, a girl got down and crawling across the floor."
+
+what is the answer?
