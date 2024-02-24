@@ -1,8 +1,10 @@
 from openai import OpenAI, OpenAIError
 from dotenv import load_dotenv
 
-'''you need to save your OpenAI API key in the '.env' file, like:
-    OPENAI_API_KEY=abc123 '''
+'''
+    Please save your OpenAI API key in the '.env' file, e.g.: 
+        OPENAI_API_KEY=abc123 
+'''
 # Load environment variables from .env file
 load_dotenv()
 
@@ -28,13 +30,17 @@ try:
     motions = content.split(';')
     
     # Process the motions: remove empty spaces, remove empty string
-    motions = [motion.strip().replace("\n", "") for motion in motions \
-                        if motion.strip().replace("\n", "") != ""]
+    motions = [motion.strip().replace("\n", "").replace('"','')+'.' for motion in motions \
+                        if motion.strip().replace("\n", "").replace('"','') != ""]
     
     if len(motions) == 0:
         raise ValueError("Extract 0 number of human motion.")
 
     print(motions)
+    # save the motions to file:
+    file_path = 'persons.txt'
+    with open(file_path, 'w') as file: [file.write(motion + '\n') for motion in motions]
+
 
 
 except OpenAIError as e:
