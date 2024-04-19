@@ -224,7 +224,21 @@ class Text2MotionDatasetV2(data.Dataset):
         length_list = []
         for name in tqdm(id_list):
             try:
-                motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
+                # motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
+                motion_smpl = np.load(f'./dataset/HumanML3D/smpl/{name}.npy', allow_pickle=True).item()
+                trans = motion_smpl['bdata_trans'] # (seq_len, 3)
+                pose_6d = motion_smpl['pose_6d'] # (seq_len, 312)
+                betas = motion_smpl['betas'][:10]   # (10, )
+                gender = motion_smpl['gender'] #'male'
+                gender_bi = 0 if 'female' in gender else 1 # female: 0, male: 1
+                
+                shape_gen = np.concatenate((betas, [gender_bi]))
+                shape_gen = np.tile(shape_gen, (trans.shape[0], 1))
+
+                motion = np.concatenate((trans, pose_6d), axis=1) # (seq_len, 3+312)
+                motion = np.concatenate((motion, shape_gen), axis=1) #(seq_len,  3(trans) + 312(pose) + 10(shape) + 1(gender) =326)
+                motion = motion[:-1]
+
                 if (len(motion)) < min_motion_len or (len(motion) >= 200):
                     continue
                 text_data = []
@@ -274,8 +288,8 @@ class Text2MotionDatasetV2(data.Dataset):
 
         name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
 
-        self.mean = mean
-        self.std = std
+        # self.mean = mean
+        # self.std = std
         self.length_arr = np.array(length_list)
         self.data_dict = data_dict
         self.name_list = name_list
@@ -287,8 +301,8 @@ class Text2MotionDatasetV2(data.Dataset):
         print("Pointer Pointing at %d"%self.pointer)
         self.max_length = length
 
-    def inv_transform(self, data):
-        return data * self.std + self.mean
+    # def inv_transform(self, data):
+    #     return data * self.std + self.mean
 
     def __len__(self):
         return len(self.data_dict) - self.pointer
@@ -334,7 +348,7 @@ class Text2MotionDatasetV2(data.Dataset):
         motion = motion[idx:idx+m_length]
 
         "Z Normalization"
-        motion = (motion - self.mean) / self.std
+        # motion = (motion - self.mean) / self.std
 
         if m_length < self.max_motion_length:
             motion = np.concatenate([motion,

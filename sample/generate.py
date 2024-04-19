@@ -17,8 +17,8 @@ import data_loaders.humanml.utils.paramUtil as paramUtil
 from data_loaders.humanml.utils.plot_script import plot_3d_motion
 import shutil
 from data_loaders.tensors import collate
-
-
+from human_body_prior.body_model.body_model import BodyModel
+from human_body_prior import utils_transform 
 def main():
     args = generate_args()
     fixseed(args.seed)
@@ -101,6 +101,18 @@ def main():
     all_motions = []
     all_lengths = []
     all_text = []
+    male_bm_path = './body_models/smplh/male/model.npz'
+    male_dmpl_path = './body_models/dmpls/male/model.npz'
+    female_bm_path = './body_models/smplh/female/model.npz'
+    female_dmpl_path = './body_models/dmpls/female/model.npz'
+
+    num_betas = 10 # number of body parameters
+    num_dmpls = 8 # number of DMPL parameters
+
+    male_bm = BodyModel(bm_fname=male_bm_path, num_betas=num_betas, num_dmpls=num_dmpls, dmpl_fname=male_dmpl_path).to(args.device)
+    female_bm = BodyModel(bm_fname=female_bm_path, num_betas=num_betas, num_dmpls=num_dmpls, dmpl_fname=female_dmpl_path).to(args.device)
+
+
 
     for rep_i in range(args.num_repetitions):
         print(f'### Sampling [repetitions #{rep_i}]')
@@ -125,18 +137,54 @@ def main():
             const_noise=False,
         )
 
-        # Recover XYZ *positions* from HumanML3D vector representation
-        if model.data_rep == 'hml_vec':
-            n_joints = 22 if sample.shape[1] == 263 else 21
-            sample = data.dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
-            sample = recover_from_ric(sample, n_joints)
-            sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
+        # # Recover XYZ *positions* from HumanML3D vector representation
+        # if model.data_rep == 'hml_vec':
+        #     n_joints = 22 if sample.shape[1] == 263 else 21
+        #     sample = data.dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
+        #     sample = recover_from_ric(sample, n_joints)
+        #     sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1) #[1, 22, 3, 196]
 
-        rot2xyz_pose_rep = 'xyz' if model.data_rep in ['xyz', 'hml_vec'] else model.data_rep
-        rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
-        sample = model.rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
-                               jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
-                               get_rotations_back=False)
+        # rot2xyz_pose_rep = 'xyz' if model.data_rep in ['xyz', 'hml_vec'] else model.data_rep
+        # rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
+        # sample = model.rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
+        #                        jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
+        #                        get_rotations_back=False)
+        out_sample = sample.cpu().permute(0, 2, 3, 1).squeeze(1)
+        out_samples = torch.empty(out_sample.shape[0], 22, 3, 196)
+        for i in range(out_sample.shape[0]):
+            sample_i = out_sample[i]
+            trans = sample_i[:, :3]
+            pose_6d = sample_i[:, 3: 3+312]
+            
+            betas = sample_i[:, 3+312: 3+312+10].mean(dim=0)
+            gender_f = sample_i[:, -1].mean()
+            gender_i = min((0, abs(gender_f - 0)), (1, abs(gender_f - 1)), key=lambda x: x[1])[0]
+            comp_device = args.device
+
+            # '''from 6D to axis-angle'''
+            rot_6d =  torch.Tensor(pose_6d).reshape(-1, 6)
+            poses = utils_transform.sixd2aa(rot_6d).reshape(trans.shape[0], -1).numpy()
+
+            if int(gender_i) == 1:
+                bm = male_bm
+            else:
+                bm = female_bm
+
+            body_parms = {
+                'root_orient': torch.Tensor(poses[:, :3]).to(comp_device),  # controls the global root orientation
+                'pose_body': torch.Tensor(poses[:, 3:66]).to(comp_device),
+                'pose_hand': torch.Tensor(poses[:, 66:]).to(comp_device),
+                'trans': torch.Tensor(trans).to(comp_device),               # controls the global body position
+                'betas': torch.Tensor(np.repeat(betas[:10][np.newaxis], repeats=len(trans), axis=0)).to(comp_device),
+            }
+            
+            body_world = bm(**body_parms)
+            jtr = body_world.Jtr #(196, 52, 3)
+            
+            # exchange y z, human stands on xy -> xz plane
+            jtr = jtr[:, :, [0, 2, 1]]
+            jtr = jtr[:, :22, :].permute(1, 2, 0).unsqueeze(0)
+            out_samples[i] = jtr
 
         if args.unconstrained:
             all_text += ['unconstrained'] * args.num_samples
@@ -144,13 +192,13 @@ def main():
             text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
             all_text += model_kwargs['y'][text_key]
 
-        all_motions.append(sample.cpu().numpy())
+        all_motions.append(out_samples.cpu().numpy())
         all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
 
         print(f"created {len(all_motions) * args.batch_size} samples")
 
 
-    all_motions = np.concatenate(all_motions, axis=0)
+    all_motions = np.concatenate(all_motions, axis=0) #(num, 22, 3, 196)
     all_motions = all_motions[:total_num_samples]  # [bs, njoints, 6, seqlen]
     all_text = all_text[:total_num_samples]
     all_lengths = np.concatenate(all_lengths, axis=0)[:total_num_samples]
