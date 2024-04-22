@@ -16,6 +16,40 @@ from copy import deepcopy
 from diffusion.nn import mean_flat, sum_flat
 from diffusion.losses import normal_kl, discretized_gaussian_log_likelihood
 from data_loaders.humanml.scripts import motion_process
+from human_body_prior.body_model.body_model import BodyModel
+from human_body_prior import utils_transform 
+
+def get_jtr(bm, vecs):
+    '''
+    Input: SMPL parameters, trans, rotation(6d -> axis angle)   - input size [bs, 135, 1, 196]
+    Output: global joints positions [bs, seq_len, num_joints*3] - output size: [64, 196, 66]
+    '''
+
+    vec = vecs.permute(0, 3, 1, 2).squeeze(-1) #[64, 196, 135]
+    trans = vec[..., :3]
+    pose_6d = vec[..., 3: 3+22*6]
+
+    # from 6D to axis-angle
+    rot_6d =  pose_6d.reshape(-1, 6)
+    poses = utils_transform.sixd2aa(rot_6d).reshape(trans.shape[0], trans.shape[1], 22*3) #[64, 196, 66]
+    
+    # change dimension to feed all to dm in one go
+    poses = poses.reshape(-1, 66)
+    trans = trans.reshape(-1, 3)
+
+    body_parms = {
+        'root_orient': poses[:, :3],  # controls the global root orientation
+        'pose_body': poses[:, 3:66],
+        'trans': trans,               # controls the global body position
+    }
+    body_world = bm(**body_parms)
+    jtr = body_world.Jtr #(..., 52, 3)
+    
+    # exchange y z, human stands on xy -> xz plane
+    jtr = jtr[:, :22, [0, 2, 1]]
+    jtr = jtr.reshape(vec.shape[0], vec.shape[1], 66)
+
+    return jtr
 
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps, scale_betas=1.):
     """
@@ -134,6 +168,7 @@ class GaussianDiffusion:
         lambda_root_vel=0.,
         lambda_vel_rcxyz=0.,
         lambda_fc=0.,
+        device=None
     ):
         self.model_mean_type = model_mean_type
         self.model_var_type = model_var_type
@@ -197,6 +232,9 @@ class GaussianDiffusion:
         )
 
         self.l2_loss = lambda a, b: (a - b) ** 2  # th.nn.MSELoss(reduction='none')  # must be None for handling mask later on.
+        bm_path = './body_models/smplh/neutral/model.npz'
+        self.bm = BodyModel(bm_fname=bm_path, num_betas=10).to(device)
+        self.bm.eval()
 
     def masked_l2(self, a, b, mask):
         # assuming a.shape == b.shape == bs, J, Jdim, seqlen
@@ -1306,6 +1344,23 @@ class GaussianDiffusion:
 
             terms["rot_mse"] = self.masked_l2(target, model_output, mask) # mean_flat(rot_mse)
 
+            '''
+            Add joint position & velocity loss
+            ''' 
+            
+            # process half batch to reduce memory usage, if gpu memory enough, can feed all in one go
+            output_joints = get_jtr(self.bm, model_output).permute(0, 2, 1).unsqueeze(2)
+            # output_joints2 = get_jtr(bm, model_output[32:]).permute(0, 2, 1).unsqueeze(2)
+            # output_joints = torch.cat((output_joints1, output_joints2), dim=0) #[64, 66, 1, 196]
+
+            target_joints = model_kwargs['y']['jtr']
+
+            terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
+
+            target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
+            output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
+            terms["jvel_mse"] = self.masked_l2(target_joints_vel, output_joints_vel, mask[..., 1:])  # mean_flat((ta
+
             target_xyz, model_output_xyz = None, None
 
             if self.lambda_rcxyz > 0.:
@@ -1345,7 +1400,7 @@ class GaussianDiffusion:
                                                   model_output_vel[:, :-1, :, :],
                                                   mask[:, :, :, 1:])  # mean_flat((target_vel - model_output_vel) ** 2)
 
-            terms["loss"] = terms["rot_mse"] + terms.get('vb', 0.) +\
+            terms["loss"] = terms["rot_mse"] + terms["jtr_mse"] + terms["jvel_mse"] + terms.get('vb', 0.) +\
                             (self.lambda_vel * terms.get('vel_mse', 0.)) +\
                             (self.lambda_rcxyz * terms.get('rcxyz_mse', 0.)) + \
                             (self.lambda_fc * terms.get('fc', 0.))

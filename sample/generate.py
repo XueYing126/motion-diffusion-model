@@ -17,7 +17,8 @@ import data_loaders.humanml.utils.paramUtil as paramUtil
 from data_loaders.humanml.utils.plot_script import plot_3d_motion
 import shutil
 from data_loaders.tensors import collate
-
+from human_body_prior.body_model.body_model import BodyModel
+from diffusion.gaussian_diffusion import get_jtr
 
 def main():
     args = generate_args()
@@ -102,6 +103,20 @@ def main():
     all_lengths = []
     all_text = []
 
+    male_bm_path = './body_models/smplh/male/model.npz'
+    male_dmpl_path = './body_models/dmpls/male/model.npz'
+    female_bm_path = './body_models/smplh/female/model.npz'
+    female_dmpl_path = './body_models/dmpls/female/model.npz'
+    neutral_bm_path = './body_models/smplh/neutral/model.npz'
+
+    num_betas = 10 # number of body parameters
+    num_dmpls = 8 # number of DMPL parameters
+
+    male_bm = BodyModel(bm_fname=male_bm_path, num_betas=num_betas, num_dmpls=num_dmpls, dmpl_fname=male_dmpl_path).to(args.device)
+    female_bm = BodyModel(bm_fname=female_bm_path, num_betas=num_betas, num_dmpls=num_dmpls, dmpl_fname=female_dmpl_path).to(args.device)
+    neutral_bm = BodyModel(bm_fname=neutral_bm_path, num_betas=10).to(args.device)
+
+
     for rep_i in range(args.num_repetitions):
         print(f'### Sampling [repetitions #{rep_i}]')
 
@@ -125,18 +140,10 @@ def main():
             const_noise=False,
         )
 
-        # Recover XYZ *positions* from HumanML3D vector representation
-        if model.data_rep == 'hml_vec':
-            n_joints = 22 if sample.shape[1] == 263 else 21
-            sample = data.dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
-            sample = recover_from_ric(sample, n_joints)
-            sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
+        out_joints = get_jtr(neutral_bm, sample) #[bs, 196, 66]
+        out_joints = out_joints.permute(0, 2, 1) #[bs, 66, 196]
+        sample = out_joints.reshape(out_joints.shape[0], 22, 3, 196)
 
-        rot2xyz_pose_rep = 'xyz' if model.data_rep in ['xyz', 'hml_vec'] else model.data_rep
-        rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
-        sample = model.rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
-                               jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
-                               get_rotations_back=False)
 
         if args.unconstrained:
             all_text += ['unconstrained'] * args.num_samples
@@ -150,7 +157,7 @@ def main():
         print(f"created {len(all_motions) * args.batch_size} samples")
 
 
-    all_motions = np.concatenate(all_motions, axis=0)
+    all_motions = np.concatenate(all_motions, axis=0) #(num, 22, 3, 196)
     all_motions = all_motions[:total_num_samples]  # [bs, njoints, 6, seqlen]
     all_text = all_text[:total_num_samples]
     all_lengths = np.concatenate(all_lengths, axis=0)[:total_num_samples]

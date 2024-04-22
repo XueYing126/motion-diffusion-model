@@ -22,6 +22,7 @@ def collate_tensors(batch):
 def collate(batch):
     notnone_batches = [b for b in batch if b is not None]
     databatch = [b['inp'] for b in notnone_batches]
+    jtrbatch = [b['jtr'] for b in notnone_batches]
     if 'lengths' in notnone_batches[0]:
         lenbatch = [b['lengths'] for b in notnone_batches]
     else:
@@ -29,11 +30,13 @@ def collate(batch):
 
 
     databatchTensor = collate_tensors(databatch)
+    jtrbatchTensor = collate_tensors(jtrbatch)
     lenbatchTensor = torch.as_tensor(lenbatch)
     maskbatchTensor = lengths_to_mask(lenbatchTensor, databatchTensor.shape[-1]).unsqueeze(1).unsqueeze(1) # unqueeze for broadcasting
 
     motion = databatchTensor
     cond = {'y': {'mask': maskbatchTensor, 'lengths': lenbatchTensor}}
+    cond['y'].update({'jtr': jtrbatchTensor})
 
     if 'text' in notnone_batches[0]:
         textbatch = [b['text'] for b in notnone_batches]
@@ -62,6 +65,7 @@ def t2m_collate(batch):
         'text': b[2], #b[0]['caption']
         'tokens': b[6],
         'lengths': b[5],
+        'jtr': torch.tensor(b[7].T).float().unsqueeze(1),
     } for b in batch]
     return collate(adapted_batch)
 

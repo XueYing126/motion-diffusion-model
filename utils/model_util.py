@@ -34,7 +34,7 @@ def get_model_args(args, data):
 
     if args.dataset == 'humanml':
         data_rep = 'hml_vec'
-        njoints = 263
+        njoints = 135 # 263, smplh 326, smpl 135=3+22*6
         nfeats = 1
     elif args.dataset == 'kit':
         data_rep = 'hml_vec'
@@ -84,4 +84,5 @@ def create_gaussian_diffusion(args):
         lambda_vel=args.lambda_vel,
         lambda_rcxyz=args.lambda_rcxyz,
         lambda_fc=args.lambda_fc,
+        device = args.device
     )
