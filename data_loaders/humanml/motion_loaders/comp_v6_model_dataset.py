@@ -248,10 +248,11 @@ class CompMDMGeneratedDataset(Dataset):
         sent_len = data['cap_len']
 
         if self.dataset.mode == 'eval':
-            normed_motion = motion
-            denormed_motion = self.dataset.t2m_dataset.inv_transform(normed_motion)
-            renormed_motion = (denormed_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval  # according to T2M norms
-            motion = renormed_motion
+            pass
+            # normed_motion = motion
+            # denormed_motion = self.dataset.t2m_dataset.inv_transform(normed_motion)
+            # renormed_motion = (denormed_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval  # according to T2M norms
+            # motion = renormed_motion
             # This step is needed because T2M evaluators expect their norm convention
 
         pos_one_hots = []
@@ -263,4 +264,4 @@ class CompMDMGeneratedDataset(Dataset):
         pos_one_hots = np.concatenate(pos_one_hots, axis=0)
         word_embeddings = np.concatenate(word_embeddings, axis=0)
 
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), 0

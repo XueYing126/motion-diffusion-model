@@ -111,6 +111,8 @@ def build_evaluators(opt):
 
     checkpoint = torch.load(pjoin(opt['checkpoints_dir'], ckpt_dir, 'text_mot_match', 'model', 'finest.tar'),
                             map_location=opt['device'])
+    checkpoint = torch.load(pjoin('.', 'finest.tar'),
+                            map_location=opt['device'])
     movement_enc.load_state_dict(checkpoint['movement_encoder'])
     text_enc.load_state_dict(checkpoint['text_encoder'])
     motion_enc.load_state_dict(checkpoint['motion_encoder'])
@@ -131,7 +133,7 @@ class EvaluatorMDMWrapper(object):
             'max_text_len': 20,
             'dim_text_hidden': 512,
             'dim_coemb_hidden': 512,
-            'dim_pose': 263 if dataset_name == 'humanml' else 251,
+            'dim_pose': 135+4 if dataset_name == 'humanml' else 251,
             'dim_movement_enc_hidden': 512,
             'dim_movement_latent': 512,
             'checkpoints_dir': '.',
@@ -162,7 +164,7 @@ class EvaluatorMDMWrapper(object):
             m_lens = m_lens[align_idx]
 
             '''Movement Encoding'''
-            movements = self.movement_encoder(motions[..., :-4]).detach()
+            movements = self.movement_encoder(motions).detach()
             m_lens = m_lens // self.opt['unit_length']
             motion_embedding = self.motion_encoder(movements, m_lens)
 
@@ -181,7 +183,7 @@ class EvaluatorMDMWrapper(object):
             m_lens = m_lens[align_idx]
 
             '''Movement Encoding'''
-            movements = self.movement_encoder(motions[..., :-4]).detach()
+            movements = self.movement_encoder(motions).detach()
             m_lens = m_lens // self.opt['unit_length']
             motion_embedding = self.motion_encoder(movements, m_lens)
         return motion_embedding
