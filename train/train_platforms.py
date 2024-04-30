@@ -1,4 +1,5 @@
 import os
+import wandb
 
 class TrainPlatform:
     def __init__(self, save_dir):
@@ -13,7 +14,22 @@ class TrainPlatform:
     def close(self):
         pass
 
-
+class WandbPlatform(TrainPlatform):
+    def __init__(self, save_dir):
+        super().__init__(save_dir)
+        
+        path, name = os.path.split(save_dir)
+        wandb.init(project='motion_diffusion', name=name, dir=path)
+        
+    def report_scalar(self, name, value, iteration, group_name):
+        wandb.log({f'{group_name}/{name}': value}, step=iteration)
+        
+    def report_args(self, args, name):
+        wandb.config.update(args)
+        
+    def close(self):
+        wandb.finish()
+        
 class ClearmlPlatform(TrainPlatform):
     def __init__(self, save_dir):
         from clearml import Task
