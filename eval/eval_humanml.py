@@ -1,3 +1,6 @@
+'''
+python -m eval.eval_humanml --model_path ./save/humanml_enc_512_50steps/model000750000.pt   --device 1 --eval_mode debug
+'''
 from utils.parser_util import evaluation_parser
 from utils.fixseed import fixseed
 from datetime import datetime
@@ -38,6 +41,10 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
                     motions=motions,
                     m_lens=m_lens
                 )
+                if torch.any(torch.isnan(motion_embeddings)):
+                    nan_rows = torch.any(torch.isnan(motion_embeddings), dim=1)
+                    motion_embeddings[nan_rows] = torch.zeros_like(motion_embeddings[nan_rows]).to(motion_embeddings.device)
+                    print("----------------------find nan. -------------------------")
                 dist_mat = euclidean_distance_matrix(text_embeddings.cpu().numpy(),
                                                      motion_embeddings.cpu().numpy())
                 matching_score_sum += dist_mat.trace()
@@ -146,10 +153,12 @@ def evaluation(eval_wrapper, gt_loader, eval_motion_loaders, log_file, replicati
             motion_loaders = {}
             mm_motion_loaders = {}
             motion_loaders['ground truth'] = gt_loader
-            for motion_loader_name, motion_loader_getter in eval_motion_loaders.items():
-                motion_loader, mm_motion_loader = motion_loader_getter()
-                motion_loaders[motion_loader_name] = motion_loader
-                mm_motion_loaders[motion_loader_name] = mm_motion_loader
+            # for motion_loader_name, motion_loader_getter in eval_motion_loaders.items():
+            #     motion_loader, mm_motion_loader = motion_loader_getter()
+            #     motion_loaders[motion_loader_name] = motion_loader
+            #     mm_motion_loaders[motion_loader_name] = mm_motion_loader
+            gen_loader = get_dataset_loader(name="humanml", batch_size=32, num_frames=None, split='test', hml_mode='eval')
+            motion_loaders['vald'] = gen_loader
 
             print(f'==================== Replication {replication} ====================')
             print(f'==================== Replication {replication} ====================', file=f, flush=True)
@@ -248,7 +257,7 @@ if __name__ == '__main__':
         mm_num_repeats = 0
         mm_num_times = 0
         diversity_times = 300
-        replication_times = 5  # about 3 Hrs
+        replication_times = 3  # about 3 Hrs
     elif args.eval_mode == 'wo_mm':
         num_samples_limit = 1000
         run_mm = False
@@ -275,7 +284,7 @@ if __name__ == '__main__':
     logger.log("creating data loader...")
     split = 'test'
     gt_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='gt')
-    gen_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='eval')
+    gen_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='gt')
     num_actions = gen_loader.dataset.num_actions
 
     logger.log("Creating model and diffusion...")
@@ -294,10 +303,10 @@ if __name__ == '__main__':
         ################
         ## HumanML3D Dataset##
         ################
-        'vald': lambda: get_mdm_loader(
-            model, diffusion, args.batch_size,
-            gen_loader, mm_num_samples, mm_num_repeats, gt_loader.dataset.opt.max_motion_length, num_samples_limit, args.guidance_param
-        )
+        # 'vald': lambda: get_mdm_loader(
+        #     model, diffusion, args.batch_size,
+        #     gen_loader, mm_num_samples, mm_num_repeats, gt_loader.dataset.opt.max_motion_length, num_samples_limit, args.guidance_param
+        # )
     }
 
     eval_wrapper = EvaluatorMDMWrapper(args.dataset, dist_util.dev())

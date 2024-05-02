@@ -22,7 +22,7 @@ def get_dataset_class(name):
         raise ValueError(f'Unsupported dataset name [{name}]')
 
 def get_collate_fn(name, hml_mode='train'):
-    if hml_mode == 'gt':
+    if hml_mode == 'gt' or 'eval':
         from data_loaders.humanml.data.dataset import collate_fn as t2m_eval_collate
         return t2m_eval_collate
     if name in ["humanml", "kit"]:

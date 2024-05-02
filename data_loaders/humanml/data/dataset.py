@@ -220,6 +220,10 @@ class Text2MotionDatasetV2(data.Dataset):
                 id_list.append(line.strip())
         # id_list = id_list[:200]
 
+        if opt.eval_count == -1:
+            opt.motion_dir = './dataset/HumanML3D/eval/gt'
+        else:
+            opt.motion_dir = f'./dataset/HumanML3D/eval/sample_{opt.eval_count}'
         new_name_list = []
         length_list = []
         for name in tqdm(id_list):
@@ -274,8 +278,8 @@ class Text2MotionDatasetV2(data.Dataset):
 
         name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
 
-        self.mean = mean
-        self.std = std
+        # self.mean = mean
+        # self.std = std
         self.length_arr = np.array(length_list)
         self.data_dict = data_dict
         self.name_list = name_list
@@ -287,8 +291,8 @@ class Text2MotionDatasetV2(data.Dataset):
         print("Pointer Pointing at %d"%self.pointer)
         self.max_length = length
 
-    def inv_transform(self, data):
-        return data * self.std + self.mean
+    # def inv_transform(self, data):
+    #     return data * self.std + self.mean
 
     def __len__(self):
         return len(self.data_dict) - self.pointer
@@ -334,7 +338,7 @@ class Text2MotionDatasetV2(data.Dataset):
         motion = motion[idx:idx+m_length]
 
         "Z Normalization"
-        motion = (motion - self.mean) / self.std
+        # motion = (motion - self.mean) / self.std
 
         if m_length < self.max_motion_length:
             motion = np.concatenate([motion,
@@ -719,6 +723,7 @@ class TextOnlyDataset(data.Dataset):
 
 # A wrapper class for t2m original dataset for MDM purposes
 class HumanML3D(data.Dataset):
+    eval_count = 0
     def __init__(self, mode, datapath='./dataset/humanml_opt.txt', split="train", **kwargs):
         self.mode = mode
         
@@ -739,6 +744,7 @@ class HumanML3D(data.Dataset):
         opt.save_root = pjoin(abs_base_path, opt.save_root)
         opt.meta_dir = './dataset'
         self.opt = opt
+        self.opt.eval_count = -1
         print('Loading dataset %s ...' % opt.dataset_name)
 
         if mode == 'gt':
@@ -755,6 +761,9 @@ class HumanML3D(data.Dataset):
             # this is to translate their norms to ours
             self.mean_for_eval = np.load(pjoin(opt.meta_dir, f'{opt.dataset_name}_mean.npy'))
             self.std_for_eval = np.load(pjoin(opt.meta_dir, f'{opt.dataset_name}_std.npy'))
+
+            self.opt.eval_count = str(HumanML3D.eval_count).zfill(2)
+            HumanML3D.eval_count += 1
 
         self.split_file = pjoin(opt.data_root, f'{split}.txt')
         if mode == 'text_only':
