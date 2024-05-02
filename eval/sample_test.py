@@ -50,7 +50,7 @@ if __name__ == "__main__":
     # sample all test
     text_dir = './dataset/HumanML3D/texts'
     split_file = './dataset/HumanML3D/test.txt'
-    save_folder = './dataset/HumanML3D/eval/sample_00'
+    save_folder = './dataset/HumanML3D/eval/sample_01'
     
     id_list = []
     with cs.open(split_file, 'r') as f:
