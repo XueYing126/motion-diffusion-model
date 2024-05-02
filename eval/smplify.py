@@ -2,10 +2,10 @@
 credit to joints2smpl
 https://github.com/wangsen1312/joints2smpl
 
-Use SMPLify to process humanact12 dataset and obtain SMPL parameters
+process t2m 263d representaiton to joints and obtain SMPL parameters using smplify
 
-Input folder: './pose_data/humanact12'
-Output folder: './humanact12/
+Input folder: './HumanML3D/new_joint_vecs/'
+Output folder: './dataset/HumanML3D/eval/gt/'
 '''
 
 import os
@@ -22,9 +22,9 @@ from utils import utils_transform
 from os.path import join as pjoin
 from data_loaders.humanml.scripts.motion_process import recover_from_ric
 
-def Joints2SMPL(input_joints, num_smplify_iters = 50):
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+def Joints2SMPL(input_joints, num_smplify_iters = 50):
 
     # input_joints = input_joints[:, :, [0, 2, 1]] # amass stands on x, y
 
@@ -76,6 +76,7 @@ def Joints2SMPL(input_joints, num_smplify_iters = 50):
     betas = new_opt_betas.mean(axis=0).detach().cpu().numpy()
     trans = keypoints_3d[:, 0].detach().cpu().numpy()
     
+    # from axis-angle to 6D pose
     pose_aa = torch.Tensor(poses).reshape(-1,3)
     pose_6d = utils_transform.aa2sixd(pose_aa).reshape(poses.shape[0],-1).numpy()
     
@@ -87,21 +88,28 @@ def Joints2SMPL(input_joints, num_smplify_iters = 50):
 if __name__ == "__main__":
 
     split_file = './dataset/HumanML3D/test.txt'
+
     id_list = []
     with cs.open(split_file, 'r') as f:
         for line in f.readlines():
             id_list.append(line.strip())
-
     random.shuffle(id_list)
+
     for name in tqdm(id_list):
+        motion_path = pjoin("./dataset/HumanML3D/new_joint_vecs", name + '.npy')
         save_path = pjoin("./dataset/HumanML3D/eval/gt", name + '.npy')
 
         if os.path.exists(save_path):
-            print(f'{save_path} already exists')
+            # print(f'{save_path} already exists')
+            continue
+        
+        try:
+            motion = np.load(motion_path) #(seq_len, 263)
+        except:
+            print("can not find ", motion_path)
             continue
 
-        motion = np.load(pjoin("./dataset/HumanML3D/new_joint_vecs", name + '.npy')) #(seq_len, 263)
-        joints = recover_from_ric(torch.tensor(motion), 22)#[seq_len, 22, 3]
+        joints = recover_from_ric(torch.tensor(motion), 22) #[seq_len, 22, 3]
         motion153d = Joints2SMPL(joints, 50)
         
         np.save(save_path, motion153d)
