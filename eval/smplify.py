@@ -6,6 +6,8 @@ process t2m 263d representaiton to joints and obtain SMPL parameters using smpli
 
 Input folder: './HumanML3D/new_joint_vecs/'
 Output folder: './dataset/HumanML3D/eval/gt/'
+
+run script: python -m eval.smplify 
 '''
 
 import os
@@ -24,7 +26,7 @@ from data_loaders.humanml.scripts.motion_process import recover_from_ric
 
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
-def Joints2SMPL(input_joints, num_smplify_iters = 50):
+def Joints2SMPL(input_joints, num_smplify_iters, device):
 
     # input_joints = input_joints[:, :, [0, 2, 1]] # amass stands on x, y
 
@@ -110,7 +112,7 @@ if __name__ == "__main__":
             continue
 
         joints = recover_from_ric(torch.tensor(motion), 22) #[seq_len, 22, 3]
-        motion153d = Joints2SMPL(joints, 50)
+        motion135d = Joints2SMPL(joints, 50, device)
         
-        np.save(save_path, motion153d)
+        np.save(save_path, motion135d)
         
