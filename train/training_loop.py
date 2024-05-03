@@ -106,11 +106,13 @@ class TrainLoop:
         if resume_checkpoint:
             self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
             logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
-            self.model.load_state_dict(
+            missing_keys, unexpected_keys = self.model.load_state_dict(
                 dist_util.load_state_dict(
                     resume_checkpoint, map_location=dist_util.dev()
-                )
+                ) , strict=False
             )
+            assert len(unexpected_keys) == 0
+            assert all([k.startswith('clip_model.') for k in missing_keys])
 
     def _load_optimizer_state(self):
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
