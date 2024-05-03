@@ -106,11 +106,13 @@ class TrainLoop:
         if resume_checkpoint:
             self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
             logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
-            self.model.load_state_dict(
+            missing_keys, unexpected_keys = self.model.load_state_dict(
                 dist_util.load_state_dict(
                     resume_checkpoint, map_location=dist_util.dev()
-                )
+                ) , strict=False
             )
+            assert len(unexpected_keys) == 0
+            assert all([k.startswith('clip_model.') for k in missing_keys])
 
     def _load_optimizer_state(self):
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -127,7 +129,7 @@ class TrainLoop:
     def run_loop(self):
 
         for epoch in range(self.num_epochs):
-            print(f'Starting epoch {epoch}/{self.num_epochs}; total iters: {self.num_steps}; iters/epoch: {len(self.data)}; {self.device}')
+            print(f'Starting epoch {epoch}/{self.num_epochs}; {len(self.data)} iters/epoch; total iters: {self.num_steps}; {self.device}')
             for motion, cond in tqdm(self.data):
                 if not (not self.lr_anneal_steps or self.step + self.resume_step < self.lr_anneal_steps):
                     break
