@@ -5,6 +5,9 @@ from torch.utils.data import Dataset, DataLoader
 from os.path import join as pjoin
 from tqdm import tqdm
 from utils import dist_util
+from diffusion.gaussian_diffusion import get_jtr
+from human_body_prior.body_model.body_model import BodyModel
+from eval.process_representation import *
 
 def build_models(opt):
     if opt.text_enc_mod == 'bigru':
@@ -172,6 +175,8 @@ class CompMDMGeneratedDataset(Dataset):
 
         model.eval()
 
+        neutral_bm_path = './body_models/smplh/neutral/model.npz'
+        neutral_bm = BodyModel(bm_fname=neutral_bm_path, num_betas=10).to(dist_util.dev())
 
         with torch.no_grad():
             for i, (motion, model_kwargs) in tqdm(enumerate(dataloader)):
@@ -205,6 +210,20 @@ class CompMDMGeneratedDataset(Dataset):
                         const_noise=False,
                         # when experimenting guidance_scale we want to nutrileze the effect of noise on generation
                     )
+                    # breakpoint()
+                    out_joints = get_jtr(neutral_bm, sample) #[32, 196, 66]
+                    out_joints = out_joints.reshape(out_joints.shape[0], out_joints.shape[1], 22, 3)
+                    reshaped = out_joints.cpu().numpy()
+                    
+                    motions = np.zeros((reshaped.shape[0], out_joints.shape[1]-1, 263))
+                    for i in range(reshaped.shape[0]):
+                        motion = joints2263d(reshaped[i])
+                        motions[i] = motion
+                    sample = torch.tensor(motions, device=dist_util.dev())
+                    sample = sample.permute(0, 2, 1)
+                    
+                    # breakpoint()
+
 
                     if t == 0:
                         sub_dicts = [{
@@ -249,7 +268,7 @@ class CompMDMGeneratedDataset(Dataset):
 
         if self.dataset.mode == 'eval':
             normed_motion = motion
-            denormed_motion = self.dataset.t2m_dataset.inv_transform(normed_motion)
+            denormed_motion = normed_motion
             renormed_motion = (denormed_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval  # according to T2M norms
             motion = renormed_motion
             # This step is needed because T2M evaluators expect their norm convention
@@ -263,4 +282,4 @@ class CompMDMGeneratedDataset(Dataset):
         pos_one_hots = np.concatenate(pos_one_hots, axis=0)
         word_embeddings = np.concatenate(word_embeddings, axis=0)
 
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), 0
