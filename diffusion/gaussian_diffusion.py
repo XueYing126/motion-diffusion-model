@@ -1348,18 +1348,18 @@ class GaussianDiffusion:
             Add joint position & velocity loss
             ''' 
             
-            # process half batch to reduce memory usage, if gpu memory enough, can feed all in one go
-            output_joints = get_jtr(self.bm, model_output).permute(0, 2, 1).unsqueeze(2)
-            # output_joints2 = get_jtr(bm, model_output[32:]).permute(0, 2, 1).unsqueeze(2)
-            # output_joints = torch.cat((output_joints1, output_joints2), dim=0) #[64, 66, 1, 196]
+            # # process half batch to reduce memory usage, if gpu memory enough, can feed all in one go
+            # output_joints = get_jtr(self.bm, model_output).permute(0, 2, 1).unsqueeze(2)
+            # # output_joints2 = get_jtr(bm, model_output[32:]).permute(0, 2, 1).unsqueeze(2)
+            # # output_joints = torch.cat((output_joints1, output_joints2), dim=0) #[64, 66, 1, 196]
 
-            target_joints = model_kwargs['y']['jtr']
+            # target_joints = model_kwargs['y']['jtr']
 
-            terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
+            # terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
 
-            target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
-            output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
-            terms["jvel_mse"] = self.masked_l2(target_joints_vel, output_joints_vel, mask[..., 1:])  # mean_flat((ta
+            # target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
+            # output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
+            # terms["jvel_mse"] = self.masked_l2(target_joints_vel, output_joints_vel, mask[..., 1:])  # mean_flat((ta
 
             target_xyz, model_output_xyz = None, None
 
@@ -1400,7 +1400,7 @@ class GaussianDiffusion:
                                                   model_output_vel[:, :-1, :, :],
                                                   mask[:, :, :, 1:])  # mean_flat((target_vel - model_output_vel) ** 2)
 
-            terms["loss"] = terms["rot_mse"] + terms["jtr_mse"] + terms["jvel_mse"] + terms.get('vb', 0.) +\
+            terms["loss"] = terms["rot_mse"] + terms.get('vb', 0.) +\
                             (self.lambda_vel * terms.get('vel_mse', 0.)) +\
                             (self.lambda_rcxyz * terms.get('rcxyz_mse', 0.)) + \
                             (self.lambda_fc * terms.get('fc', 0.))
