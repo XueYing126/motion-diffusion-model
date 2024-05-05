@@ -99,6 +99,8 @@ class TrainLoop:
             }
         self.use_ddp = False
         self.ddp_model = self.model
+        self.fid_min = 1000
+        self.fid_iter = self.resume_step
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -129,7 +131,7 @@ class TrainLoop:
     def run_loop(self):
 
         for epoch in range(self.num_epochs):
-            print(f'Starting epoch {epoch}/{self.num_epochs}; {len(self.data)} iters/epoch; total iters: {self.num_steps}; {self.device}')
+            print(f'Starting epoch {epoch + self.resume_step // len(self.data)}/{self.num_epochs}; steps: {(self.step+self.resume_step):,}/{self.num_steps:,}; {self.device}; lowest FID: {self.fid_min:.2f} - {self.fid_iter:,}iter')
             for motion, cond in tqdm(self.data):
                 if not (not self.lr_anneal_steps or self.step + self.resume_step < self.lr_anneal_steps):
                     break
@@ -178,6 +180,9 @@ class TrainLoop:
                 self.eval_wrapper, self.eval_gt_data, self.eval_data, log_file,
                 replication_times=self.args.eval_rep_times, diversity_times=diversity_times, mm_num_times=mm_num_times, run_mm=False)
             print(eval_dict)
+            if eval_dict['FID_test'] < self.fid_min:
+                self.fid_min = eval_dict['FID_test'] 
+                self.fid_iter = self.step + self.resume_step
             for k, v in eval_dict.items():
                 if k.startswith('R_precision'):
                     for i in range(len(v)):
