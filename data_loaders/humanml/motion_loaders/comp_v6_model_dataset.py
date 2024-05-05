@@ -205,6 +205,12 @@ class CompMDMGeneratedDataset(Dataset):
                         const_noise=False,
                         # when experimenting guidance_scale we want to nutrileze the effect of noise on generation
                     )
+                    # applying a moving average filter for smoothing
+                    window_size = 3
+                    kernel = torch.ones((1, 1, 1, window_size), device=dist_util.dev())/ window_size
+                    sample2 = sample.permute(0, 2, 1, 3) # [32, 1, 135, 196]
+                    smoothed_data = torch.nn.functional.conv2d(sample2, kernel, padding=(0, 1))#[32, 1, 135, 196]
+                    sample = smoothed_data.permute(0, 2, 1, 3)
 
                     if t == 0:
                         sub_dicts = [{
