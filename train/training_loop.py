@@ -51,6 +51,8 @@ class TrainLoop:
         self.global_batch = self.batch_size # * dist.get_world_size()
         self.num_steps = args.num_steps
         self.num_epochs = self.num_steps // len(self.data) + 1
+        self.lowest_fid = 1000
+        self.fid_steps = self.resume_step
 
         self.sync_cuda = torch.cuda.is_available()
 
@@ -129,7 +131,7 @@ class TrainLoop:
     def run_loop(self):
 
         for epoch in range(self.num_epochs):
-            print(f'Starting epoch {epoch}/{self.num_epochs}; {len(self.data)} iters/epoch; total iters: {self.num_steps}; {self.device}')
+            print(f'Starting epoch {epoch + self.resume_step // len(self.data)}/{self.num_epochs};  steps: {(self.step+self.resume_step)//1000}k/{self.num_steps//1000}k; {self.device}, lowest FID {self.lowest_fid:.3f} - {self.fid_steps//1000}k')
             for motion, cond in tqdm(self.data):
                 if not (not self.lr_anneal_steps or self.step + self.resume_step < self.lr_anneal_steps):
                     break
@@ -149,10 +151,17 @@ class TrainLoop:
                             self.train_platform.report_scalar(name=k, value=v, iteration=self.step, group_name='Loss')
 
                 if self.step % self.save_interval == 0:
-                    self.save()
+                    # self.save()
                     self.model.eval()
-                    self.evaluate()
+                    FID_test = self.evaluate()
                     self.model.train()
+                    
+                    if FID_test < self.lowest_fid:
+                        self.lowest_fid = FID_test
+                        self.fid_steps = self.step + self.resume_step
+                        self.save()
+                    elif self.step % (5*self.save_interval) == 0:
+                        self.save()
 
                     # Run for a finite amount of time in integration tests.
                     if os.environ.get("DIFFUSION_TRAINING_TEST", "") and self.step > 0:
@@ -163,7 +172,7 @@ class TrainLoop:
         # Save the last checkpoint if it wasn't already saved.
         if (self.step - 1) % self.save_interval != 0:
             self.save()
-            self.evaluate()
+            FID_test = self.evaluate()
 
     def evaluate(self):
         if not self.args.eval_during_training:
@@ -203,6 +212,7 @@ class TrainLoop:
 
         end_eval = time.time()
         print(f'Evaluation time: {round(end_eval-start_eval)/60}min')
+        return eval_dict['FID_test']
 
 
     def run_step(self, batch, cond):
