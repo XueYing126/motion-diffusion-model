@@ -47,6 +47,7 @@ def get_jtr(bm, vecs):
     
     # exchange y z, human stands on xy -> xz plane
     jtr = jtr[:, :22, [0, 2, 1]]
+    jtr[..., 0] *= -1
     jtr = jtr.reshape(vec.shape[0], vec.shape[1], 66)
 
     return jtr
@@ -1350,9 +1351,7 @@ class GaussianDiffusion:
             
             # process half batch to reduce memory usage, if gpu memory enough, can feed all in one go
             output_joints = get_jtr(self.bm, model_output).permute(0, 2, 1).unsqueeze(2)
-            # output_joints2 = get_jtr(bm, model_output[32:]).permute(0, 2, 1).unsqueeze(2)
-            # output_joints = torch.cat((output_joints1, output_joints2), dim=0) #[64, 66, 1, 196]
-
+            
             target_joints = model_kwargs['y']['jtr']
 
             terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
