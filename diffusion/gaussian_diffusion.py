@@ -27,6 +27,8 @@ def get_jtr(bm, vecs):
 
     vec = vecs.permute(0, 3, 1, 2).squeeze(-1) #[64, 196, 135]
     trans = vec[..., :3]
+    # velocity -> position
+    trans[..., [0, 1]]= torch.cumsum(trans, dim=-2)[..., [0, 1]]
     pose_6d = vec[..., 3: 3+22*6]
 
     # from 6D to axis-angle

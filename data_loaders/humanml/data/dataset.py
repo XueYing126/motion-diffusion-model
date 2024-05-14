@@ -230,6 +230,10 @@ class Text2MotionDatasetV2(data.Dataset):
                 pose_6d = motion_smpl['pose_6d']# (seq_len, 312)
                 jtr = motion_smpl['jtr'] # (seq_len, 22, 3)
                 jtr = jtr.reshape((jtr.shape[0],  22*3)) # (seq_len, 22*3)
+                
+                # use velocity for x, y instead of translation
+                trans[..., 1:, [0, 1]] = (trans[1:] - trans[:-1])[..., [0, 1]]
+
                 motion = np.concatenate((trans, pose_6d[..., :6*22]), axis=1) # (seq_len, 3+132)
                 motion = motion[:-1]
                 jtr = jtr[:-1]
