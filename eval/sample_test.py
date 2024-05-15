@@ -109,8 +109,14 @@ if __name__ == "__main__":
 
         n_joints = 22
         sample = data.dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float() #[bs, 1, 196, 263]
-        joints = recover_from_ric(sample, n_joints)#[bs, 1, 196, 22, 3]
+        joints = recover_from_ric(sample, n_joints)[0][0] #[bs, 1, 196, 22, 3]
+        joints[...,[0, 2]] *=-1
 
-        motion135d = Joints2SMPL(joints[0][0], 50, args.device)#(bs, 135)
+        motion135d, trans, pose_6d = Joints2SMPL(joints, 50, args.device)#(bs, 135)
         
-        np.save(save_path, motion135d)
+        save_data = {
+            "bdata_trans": trans,
+            "pose_6d":pose_6d, 
+            "jtr": joints,
+        }
+        np.save(save_path, save_data)

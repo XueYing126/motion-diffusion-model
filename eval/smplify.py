@@ -24,7 +24,6 @@ from utils import utils_transform
 from os.path import join as pjoin
 from data_loaders.humanml.scripts.motion_process import recover_from_ric
 
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 def Joints2SMPL(input_joints, num_smplify_iters, device):
 
@@ -84,7 +83,7 @@ def Joints2SMPL(input_joints, num_smplify_iters, device):
     
     motion = np.concatenate((trans, pose_6d[..., :6*22]), axis=1)
    
-    return motion
+    return motion, trans, pose_6d
 
 
 if __name__ == "__main__":
