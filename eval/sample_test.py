@@ -50,7 +50,8 @@ if __name__ == "__main__":
     # sample all test
     text_dir = './dataset/HumanML3D/texts'
     split_file = './dataset/HumanML3D/test.txt'
-    save_folder = './dataset/HumanML3D/eval/sample_00'
+    tt = str(args.rep_t).zfill(2)
+    save_folder = f'./dataset/HumanML3D/eval/sample_{tt}'
     
     id_list = []
     with cs.open(split_file, 'r') as f:
