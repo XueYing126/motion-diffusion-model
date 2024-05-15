@@ -5,6 +5,8 @@ from torch.utils.data import Dataset, DataLoader
 from os.path import join as pjoin
 from tqdm import tqdm
 from utils import dist_util
+from human_body_prior.body_model.body_model import BodyModel
+from diffusion.gaussian_diffusion import get_jtr
 
 def build_models(opt):
     if opt.text_enc_mod == 'bigru':
@@ -172,6 +174,9 @@ class CompMDMGeneratedDataset(Dataset):
 
         model.eval()
 
+        neutral_bm_path = './body_models/smplh/neutral/model.npz'
+        neutral_bm = BodyModel(bm_fname=neutral_bm_path, num_betas=10).to(dist_util.dev())
+
 
         with torch.no_grad():
             for i, (motion, model_kwargs) in tqdm(enumerate(dataloader)):
@@ -205,6 +210,8 @@ class CompMDMGeneratedDataset(Dataset):
                         const_noise=False,
                         # when experimenting guidance_scale we want to nutrileze the effect of noise on generation
                     )
+                    jtr = get_jtr(neutral_bm, sample).permute(0, 2, 1).unsqueeze(2)
+        
 
                     if t == 0:
                         sub_dicts = [{
@@ -216,6 +223,7 @@ class CompMDMGeneratedDataset(Dataset):
                             # Lead to improved R-precision and Multimodal Dist.
                             # issue: https://github.com/GuyTevet/motion-diffusion-model/issues/182
                             'cap_len': tokens[bs_i].index('eos/OTHER') + 1, 
+                            'jtr':jtr[bs_i].squeeze().permute(1, 0).cpu().numpy(),
                             } for bs_i in range(dataloader.batch_size)]
                         generated_motion += sub_dicts
 
@@ -246,6 +254,7 @@ class CompMDMGeneratedDataset(Dataset):
         data = self.generated_motion[item]
         motion, m_length, caption, tokens = data['motion'], data['length'], data['caption'], data['tokens']
         sent_len = data['cap_len']
+        jtr = data['jtr']
 
         if self.dataset.mode == 'eval':
             pass
@@ -264,4 +273,4 @@ class CompMDMGeneratedDataset(Dataset):
         pos_one_hots = np.concatenate(pos_one_hots, axis=0)
         word_embeddings = np.concatenate(word_embeddings, axis=0)
 
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), 0
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), jtr

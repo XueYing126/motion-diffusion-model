@@ -16,6 +16,33 @@ from model.cfg_sampler import ClassifierFreeSampleModel
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+import copy
+def trans2vel(trans):
+    # x, y position -> x, y velocity
+    vel = copy.deepcopy(trans)
+    vel[:, 1:, [0, 1]] = (trans[:, 1:] - trans[:, :-1])[..., [0, 1]]
+    return vel
+
+def transform_motion_evalrep(motions, jtr):
+    # transform the data to evaluation representation: trans, pose_6d, 
+    trans = motions[..., :3]
+    pose_6d = motions[..., 3:]
+    bs, seq_len, _ = jtr.shape
+    jtr = jtr.reshape(bs, seq_len, 22, 3)
+
+    local_joints = copy.deepcopy(jtr)
+    jtr_root_vel =  trans2vel(local_joints[..., 0, [0, 2, 1]])
+
+    # local joint position, (x-root_x, y-root_y, z)
+    local_joints[:, :, :, [0, 2]] -= local_joints[:, :, 0:1, [0, 2]]
+    local_joints = local_joints.reshape(bs, seq_len, 22*3)
+    
+    # local joint velocity
+    local_joints_vel = local_joints[:, 1:] - local_joints[:, :-1]
+    local_joints_vel = local_joints_vel.reshape(bs, seq_len-1, 22*3)
+    motions = torch.cat((trans[:, :-1], pose_6d[..., :6*22][:, :-1], jtr_root_vel[:, :-1], local_joints[:, :-1], local_joints_vel), dim=-1)
+    return motions
+    
 def evaluate_matching_score(eval_wrapper, motion_loaders, file):
     match_score_dict = OrderedDict({})
     R_precision_dict = OrderedDict({})
@@ -30,7 +57,8 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
         # print(motion_loader_name)
         with torch.no_grad():
             for idx, batch in enumerate(motion_loader):
-                word_embeddings, pos_one_hots, _, sent_lens, motions, m_lens, _, _, = batch
+                word_embeddings, pos_one_hots, _, sent_lens, motions, m_lens, _, jtr, = batch
+                motions = transform_motion_evalrep(motions, jtr)
                 text_embeddings, motion_embeddings = eval_wrapper.get_co_embeddings(
                     word_embs=word_embeddings,
                     pos_ohot=pos_one_hots,
@@ -38,6 +66,9 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
                     motions=motions,
                     m_lens=m_lens
                 )
+                if torch.isnan(motion_embeddings).any().item():
+                    motion_embeddings[torch.where(torch.isnan(motion_embeddings))]=0
+
                 dist_mat = euclidean_distance_matrix(text_embeddings.cpu().numpy(),
                                                      motion_embeddings.cpu().numpy())
                 matching_score_sum += dist_mat.trace()
@@ -75,11 +106,15 @@ def evaluate_fid(eval_wrapper, groundtruth_loader, activation_dict, file):
     print('========== Evaluating FID ==========')
     with torch.no_grad():
         for idx, batch in enumerate(groundtruth_loader):
-            _, _, _, sent_lens, motions, m_lens, _, _  = batch
+            _, _, _, sent_lens, motions, m_lens, _, jtr  = batch
+            motions = transform_motion_evalrep(motions, jtr)
             motion_embeddings = eval_wrapper.get_motion_embeddings(
                 motions=motions,
                 m_lens=m_lens
             )
+            if torch.isnan(motion_embeddings).any().item():
+                motion_embeddings[torch.where(torch.isnan(motion_embeddings))]=0
+
             gt_motion_embeddings.append(motion_embeddings.cpu().numpy())
     gt_motion_embeddings = np.concatenate(gt_motion_embeddings, axis=0)
     gt_mu, gt_cov = calculate_activation_statistics(gt_motion_embeddings)
@@ -248,7 +283,7 @@ if __name__ == '__main__':
         mm_num_repeats = 0
         mm_num_times = 0
         diversity_times = 300
-        replication_times = 5  # about 3 Hrs
+        replication_times = 3  # about 3 Hrs
     elif args.eval_mode == 'wo_mm':
         num_samples_limit = 1000
         run_mm = False
