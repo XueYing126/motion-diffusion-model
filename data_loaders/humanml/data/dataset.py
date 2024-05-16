@@ -221,14 +221,30 @@ class Text2MotionDatasetV2(data.Dataset):
         # id_list = id_list[:200]
 
         if opt.eval_count == -1:
-            opt.motion_dir = './dataset/HumanML3D/eval/gt'
+            opt.motion_dir = './dataset/HumanML3D/smpl'
         else:
             opt.motion_dir = f'./dataset/HumanML3D/eval/sample_{opt.eval_count}'
         new_name_list = []
         length_list = []
         for name in tqdm(id_list):
             try:
-                motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
+                motion_smpl = np.load(pjoin(opt.motion_dir, name + '.npy'), allow_pickle=True).item()
+                trans = motion_smpl['bdata_trans'] # (seq_len, 3)
+                pose_6d = motion_smpl['pose_6d']# (seq_len, 312)
+                jtr = motion_smpl['jtr'] # (seq_len, 22, 3)
+                if opt.eval_count != -1:
+                    jtr = jtr.numpy()
+                jtr = jtr.reshape((jtr.shape[0],  22*3)) # (seq_len, 22*3)
+                
+                # use velocity for x, y instead of translation
+                trans[..., 1:, [0, 1]] = (trans[1:] - trans[:-1])[..., [0, 1]]
+
+                motion = np.concatenate((trans, pose_6d[..., :6*22]), axis=1) # (seq_len, 3+132)
+                motion = motion[:-1]
+                jtr = jtr[:-1]
+                # if opt.motion_dir != './dataset/HumanML3D/smpl':
+                #     breakpoint()
+
                 if (len(motion)) < min_motion_len or (len(motion) >= 200):
                     continue
                 text_data = []
@@ -252,6 +268,7 @@ class Text2MotionDatasetV2(data.Dataset):
                         else:
                             try:
                                 n_motion = motion[int(f_tag*20) : int(to_tag*20)]
+                                n_jtr = jtr[int(f_tag*20) : int(to_tag*20)]
                                 if (len(n_motion)) < min_motion_len or (len(n_motion) >= 200):
                                     continue
                                 new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
@@ -259,7 +276,8 @@ class Text2MotionDatasetV2(data.Dataset):
                                     new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
                                 data_dict[new_name] = {'motion': n_motion,
                                                        'length': len(n_motion),
-                                                       'text':[text_dict]}
+                                                       'text':[text_dict],
+                                                       'jtr': n_jtr}
                                 new_name_list.append(new_name)
                                 length_list.append(len(n_motion))
                             except:
@@ -270,7 +288,8 @@ class Text2MotionDatasetV2(data.Dataset):
                 if flag:
                     data_dict[name] = {'motion': motion,
                                        'length': len(motion),
-                                       'text': text_data}
+                                       'text': text_data,
+                                       'jtr': jtr}
                     new_name_list.append(name)
                     length_list.append(len(motion))
             except:
@@ -301,6 +320,7 @@ class Text2MotionDatasetV2(data.Dataset):
         idx = self.pointer + item
         data = self.data_dict[self.name_list[idx]]
         motion, m_length, text_list = data['motion'], data['length'], data['text']
+        jtr = data['jtr']
         # Randomly select a caption
         text_data = random.choice(text_list)
         caption, tokens = text_data['caption'], text_data['tokens']
@@ -336,6 +356,7 @@ class Text2MotionDatasetV2(data.Dataset):
             m_length = (m_length // self.opt.unit_length) * self.opt.unit_length
         idx = random.randint(0, len(motion) - m_length)
         motion = motion[idx:idx+m_length]
+        jtr = jtr[idx:idx+m_length]
 
         "Z Normalization"
         # motion = (motion - self.mean) / self.std
@@ -344,9 +365,12 @@ class Text2MotionDatasetV2(data.Dataset):
             motion = np.concatenate([motion,
                                      np.zeros((self.max_motion_length - m_length, motion.shape[1]))
                                      ], axis=0)
+            jtr = np.concatenate([jtr,
+                                     np.zeros((self.max_motion_length - m_length, jtr.shape[1]))
+                                     ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), jtr
 
 
 '''For use of training baseline'''

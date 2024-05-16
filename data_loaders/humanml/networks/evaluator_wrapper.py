@@ -133,7 +133,7 @@ class EvaluatorMDMWrapper(object):
             'max_text_len': 20,
             'dim_text_hidden': 512,
             'dim_coemb_hidden': 512,
-            'dim_pose': 135+4 if dataset_name == 'humanml' else 251,
+            'dim_pose': 270+4 if dataset_name == 'humanml' else 251,
             'dim_movement_enc_hidden': 512,
             'dim_movement_latent': 512,
             'checkpoints_dir': '.',
