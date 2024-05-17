@@ -144,6 +144,9 @@ def main():
         out_joints = out_joints.permute(0, 2, 1) #[bs, 66, 196]
         sample = out_joints.reshape(out_joints.shape[0], 22, 3, 196)
 
+        # to make it looks correct
+        sample[:, :, [0, 2], :] *=-1
+
 
         if args.unconstrained:
             all_text += ['unconstrained'] * args.num_samples
@@ -180,7 +183,7 @@ def main():
     skeleton = paramUtil.kit_kinematic_chain if args.dataset == 'kit' else paramUtil.t2m_kinematic_chain
 
     sample_files = []
-    num_samples_in_out_file = 7
+    num_samples_in_out_file = 5
 
     sample_print_template, row_print_template, all_print_template, \
     sample_file_template, row_file_template, all_file_template = construct_template_variables(args.unconstrained)
