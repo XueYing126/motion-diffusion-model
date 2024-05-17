@@ -1373,8 +1373,10 @@ class GaussianDiffusion:
             terms["jtr_mse"] = self.masked_l2(out_local, tar_local, mask)
             # terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
 
-            target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
-            output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
+            # target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
+            # output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
+            target_joints_vel = (tar_local[..., 1:] - tar_local[..., :-1])
+            output_joints_vel = (out_local[..., 1:] - out_local[..., :-1])
             terms["jvel_mse"] = self.masked_l2(target_joints_vel, output_joints_vel, mask[..., 1:])  # mean_flat((ta
 
             target_xyz, model_output_xyz = None, None
