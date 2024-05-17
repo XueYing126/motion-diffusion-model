@@ -6,6 +6,15 @@ __pycache__/
 # C extensions
 *.so
 
+
+glove/
+t2m/
+kit/
+body_models/
+dataset/HumanML3D/
+*.tar
+save2/
+
 # Distribution / packaging
 .Python
 build/
