@@ -111,7 +111,7 @@ def build_evaluators(opt):
 
     checkpoint = torch.load(pjoin(opt['checkpoints_dir'], ckpt_dir, 'text_mot_match', 'model', 'finest.tar'),
                             map_location=opt['device'])
-    checkpoint = torch.load(pjoin('.', 'finest.tar'),
+    checkpoint = torch.load(pjoin('.', 'finest_270.tar'),
                             map_location=opt['device'])
     movement_enc.load_state_dict(checkpoint['movement_encoder'])
     text_enc.load_state_dict(checkpoint['text_encoder'])
