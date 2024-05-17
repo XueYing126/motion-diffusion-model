@@ -1418,7 +1418,7 @@ class GaussianDiffusion:
                                                   model_output_vel[:, :-1, :, :],
                                                   mask[:, :, :, 1:])  # mean_flat((target_vel - model_output_vel) ** 2)
 
-            terms["loss"] = terms["trans_mse"] + terms["rot_mse"] + terms["jtr_mse"] + terms["jvel_mse"] + terms.get('vb', 0.) +\
+            terms["loss"] = terms["trans_mse"] + terms["rot_mse"]*2 + terms["jtr_mse"] + terms["jvel_mse"] + terms.get('vb', 0.) +\
                             (self.lambda_vel * terms.get('vel_mse', 0.)) +\
                             (self.lambda_rcxyz * terms.get('rcxyz_mse', 0.)) + \
                             (self.lambda_fc * terms.get('fc', 0.))
