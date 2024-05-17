@@ -1357,27 +1357,27 @@ class GaussianDiffusion:
             terms["rot_mse"] = self.masked_l2(target[:, 3:, :, :], model_output[:, 3:, :, :], mask)
             
             # process half batch to reduce memory usage, if gpu memory enough, can feed all in one go
-            output_joints = get_jtr(self.bm, model_output).permute(0, 2, 1).unsqueeze(2)
+            # output_joints = get_jtr(self.bm, model_output).permute(0, 2, 1).unsqueeze(2)
             
-            target_joints = model_kwargs['y']['jtr']
+            # target_joints = model_kwargs['y']['jtr']
 
-            # use local joints loss!!!!!
-            out_local = output_joints.reshape(output_joints.shape[0], -1, 3, output_joints.shape[-1]).clone()
-            out_local -= out_local[:, [0], :, :]
-            out_local = out_local.reshape(output_joints.shape)
+            # # use local joints loss!!!!!
+            # out_local = output_joints.reshape(output_joints.shape[0], -1, 3, output_joints.shape[-1]).clone()
+            # out_local -= out_local[:, [0], :, :]
+            # out_local = out_local.reshape(output_joints.shape)
 
-            tar_local =  target_joints.reshape(target_joints.shape[0], -1, 3, target_joints.shape[-1]).clone()
-            tar_local -= tar_local[:, [0], :, :]
-            tar_local = tar_local.reshape(target_joints.shape)
+            # tar_local =  target_joints.reshape(target_joints.shape[0], -1, 3, target_joints.shape[-1]).clone()
+            # tar_local -= tar_local[:, [0], :, :]
+            # tar_local = tar_local.reshape(target_joints.shape)
 
-            terms["jtr_mse"] = self.masked_l2(out_local, tar_local, mask)
-            # terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
+            # terms["jtr_mse"] = self.masked_l2(out_local, tar_local, mask)
+            # # terms["jtr_mse"] = self.masked_l2(output_joints, target_joints, mask)
 
-            # target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
-            # output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
-            target_joints_vel = (tar_local[..., 1:] - tar_local[..., :-1])
-            output_joints_vel = (out_local[..., 1:] - out_local[..., :-1])
-            terms["jvel_mse"] = self.masked_l2(target_joints_vel, output_joints_vel, mask[..., 1:])  # mean_flat((ta
+            # # target_joints_vel = (target_joints[..., 1:] - target_joints[..., :-1])
+            # # output_joints_vel = (output_joints[..., 1:] - output_joints[..., :-1])
+            # target_joints_vel = (tar_local[..., 1:] - tar_local[..., :-1])
+            # output_joints_vel = (out_local[..., 1:] - out_local[..., :-1])
+            # terms["jvel_mse"] = self.masked_l2(target_joints_vel, output_joints_vel, mask[..., 1:])  # mean_flat((ta
 
             target_xyz, model_output_xyz = None, None
 
@@ -1418,7 +1418,7 @@ class GaussianDiffusion:
                                                   model_output_vel[:, :-1, :, :],
                                                   mask[:, :, :, 1:])  # mean_flat((target_vel - model_output_vel) ** 2)
 
-            terms["loss"] = terms["trans_mse"] + terms["rot_mse"] + terms["jtr_mse"] + terms["jvel_mse"] + terms.get('vb', 0.) +\
+            terms["loss"] = terms["trans_mse"] + terms["rot_mse"] + terms.get('vb', 0.) +\
                             (self.lambda_vel * terms.get('vel_mse', 0.)) +\
                             (self.lambda_rcxyz * terms.get('rcxyz_mse', 0.)) + \
                             (self.lambda_fc * terms.get('fc', 0.))
