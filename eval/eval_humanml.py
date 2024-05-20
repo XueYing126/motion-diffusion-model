@@ -16,6 +16,10 @@ from model.cfg_sampler import ClassifierFreeSampleModel
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+from eval.process_representation import joints2263d
+mean_for_eval = np.load('./dataset/t2m_mean.npy')
+std_for_eval = np.load('./dataset/t2m_std.npy')
+
 import copy
 def trans2vel(trans):
     # x, y position -> x, y velocity
@@ -23,26 +27,19 @@ def trans2vel(trans):
     vel[:, 1:, [0, 1]] = (trans[:, 1:] - trans[:, :-1])[..., [0, 1]]
     return vel
 
-def transform_motion_evalrep(motions, jtr):
-    # transform the data to evaluation representation: trans, pose_6d, 
-    trans = motions[..., :3]
-    pose_6d = motions[..., 3:]
-    bs, seq_len, _ = jtr.shape
-    jtr = jtr.reshape(bs, seq_len, 22, 3)
+def transform_motion_evalrep(motions, out_joints, m_lens):
+    # transform the motion to the evaluation representation, in this case, 263d humanml3d
+    out_joints = out_joints.reshape(out_joints.shape[0], out_joints.shape[1], 22, 3)
+    reshaped = out_joints.cpu().numpy()
+    motions = np.zeros((reshaped.shape[0], out_joints.shape[1]-1, 263))
+    for i in range(reshaped.shape[0]):
+        motion = joints2263d(reshaped[i][:m_lens[i]])
+        # need to normalize the representaiton:
+        motion = (motion - mean_for_eval) / std_for_eval  # according to T2M norms
+        motions[i, :m_lens[i]-1] = motion
+    sample = torch.tensor(motions, device=dist_util.dev())
+    return sample
 
-    local_joints = copy.deepcopy(jtr)
-    jtr_root_vel =  trans2vel(local_joints[..., 0, [0, 2, 1]])
-
-    # local joint position, (x-root_x, y-root_y, z)
-    local_joints[:, :, :, [0, 2]] -= local_joints[:, :, 0:1, [0, 2]]
-    local_joints = local_joints.reshape(bs, seq_len, 22*3)
-    
-    # local joint velocity
-    local_joints_vel = local_joints[:, 1:] - local_joints[:, :-1]
-    local_joints_vel = local_joints_vel.reshape(bs, seq_len-1, 22*3)
-    motions = torch.cat((trans[:, :-1], pose_6d[..., :6*22][:, :-1], jtr_root_vel[:, :-1], local_joints[:, :-1], local_joints_vel), dim=-1)
-    return motions
-    
 def evaluate_matching_score(eval_wrapper, motion_loaders, file):
     match_score_dict = OrderedDict({})
     R_precision_dict = OrderedDict({})
@@ -58,7 +55,7 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
         with torch.no_grad():
             for idx, batch in enumerate(motion_loader):
                 word_embeddings, pos_one_hots, _, sent_lens, motions, m_lens, _, jtr, = batch
-                motions = transform_motion_evalrep(motions, jtr)
+                motions = transform_motion_evalrep(motions, jtr, m_lens)
                 text_embeddings, motion_embeddings = eval_wrapper.get_co_embeddings(
                     word_embs=word_embeddings,
                     pos_ohot=pos_one_hots,
@@ -107,7 +104,7 @@ def evaluate_fid(eval_wrapper, groundtruth_loader, activation_dict, file):
     with torch.no_grad():
         for idx, batch in enumerate(groundtruth_loader):
             _, _, _, sent_lens, motions, m_lens, _, jtr  = batch
-            motions = transform_motion_evalrep(motions, jtr)
+            motions = transform_motion_evalrep(motions, jtr, m_lens)
             motion_embeddings = eval_wrapper.get_motion_embeddings(
                 motions=motions,
                 m_lens=m_lens
