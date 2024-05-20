@@ -24,7 +24,7 @@ joints_num = 22
 n_raw_offsets = torch.from_numpy(t2m_raw_offsets)
 kinematic_chain = t2m_kinematic_chain
 # Get offsets of target skeleton
-example_data = np.load('./joints2/000044.npy')
+example_data = np.load('./joints2/000021.npy')
 # example_data = np.load(os.path.join(data_dir, example_id + '.npy'), allow_pickle=True).item()['jtr']
 example_data = example_data.reshape(len(example_data), -1, 3)
 example_data = torch.from_numpy(example_data)
