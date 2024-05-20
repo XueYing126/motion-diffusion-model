@@ -162,7 +162,7 @@ def vertices2landmarks(vertices, faces, lmk_faces_idx, lmk_bary_coords):
 
 
 def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
-        lbs_weights, joints = None, pose2rot=True, v_shaped=None, dtype=torch.float32):
+        lbs_weights, joints = None, pose2rot=True, v_shaped=None, dtype=torch.float32, return_verts=False):
     ''' Performs Linear Blend Skinning with the given shape and pose parameters
 
         Parameters
@@ -238,20 +238,23 @@ def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
 
     # # 5. Do skinning:
     # # W is N x V x (J + 1)
-    # W = lbs_weights.unsqueeze(dim=0).expand([batch_size, -1, -1])
-    # # (N x V x (J + 1)) x (N x (J + 1) x 16)
-    # num_joints = J_regressor.shape[0]
-    # T = torch.matmul(W, A.view(batch_size, num_joints, 16)) \
-    #     .view(batch_size, -1, 4, 4)
+    if not return_verts:
+        return torch.zeros_like(J_transformed, device=J_transformed.device), J_transformed
+    
+    W = lbs_weights.unsqueeze(dim=0).expand([batch_size, -1, -1])
+    # (N x V x (J + 1)) x (N x (J + 1) x 16)
+    num_joints = J_regressor.shape[0]
+    T = torch.matmul(W, A.view(batch_size, num_joints, 16)) \
+        .view(batch_size, -1, 4, 4)
 
-    # homogen_coord = torch.ones([batch_size, v_posed.shape[1], 1],
-    #                            dtype=dtype, device=device)
-    # v_posed_homo = torch.cat([v_posed, homogen_coord], dim=2)
-    # v_homo = torch.matmul(T, torch.unsqueeze(v_posed_homo, dim=-1))
+    homogen_coord = torch.ones([batch_size, v_posed.shape[1], 1],
+                               dtype=dtype, device=device)
+    v_posed_homo = torch.cat([v_posed, homogen_coord], dim=2)
+    v_homo = torch.matmul(T, torch.unsqueeze(v_posed_homo, dim=-1))
 
-    # verts = v_homo[:, :, :3, 0]
+    verts = v_homo[:, :, :3, 0]
 
-    return 0, J_transformed
+    return verts, J_transformed
 
 
 def vertices2joints(J_regressor, vertices):

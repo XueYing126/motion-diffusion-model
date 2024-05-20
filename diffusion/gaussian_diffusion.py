@@ -19,6 +19,18 @@ from data_loaders.humanml.scripts import motion_process
 from human_body_prior.body_model.body_model import BodyModel
 from human_body_prior import utils_transform 
 
+male_bm_path = './body_models/smplh/male/model.npz'
+male_dmpl_path = './body_models/dmpls/male/model.npz'
+female_bm_path = './body_models/smplh/female/model.npz'
+female_dmpl_path = './body_models/dmpls/female/model.npz'
+
+num_betas = 10 # number of body parameters
+num_dmpls = 8 # number of DMPL parameters
+
+male_bm = BodyModel(bm_fname=male_bm_path, num_betas=num_betas, num_dmpls=num_dmpls, dmpl_fname=male_dmpl_path)
+female_bm = BodyModel(bm_fname=female_bm_path, num_betas=num_betas, num_dmpls=num_dmpls, dmpl_fname=female_dmpl_path)
+
+
 def get_jtr(bm, vecs):
     '''
     Input: SMPL parameters, trans, rotation(6d -> axis angle)   - input size [bs, 135, 1, 196]
@@ -39,10 +51,16 @@ def get_jtr(bm, vecs):
     poses = poses.reshape(-1, 66)
     trans = trans.reshape(-1, 3)
 
+    # shape:
+    beta = np.array([-0.34, -3.04, 0.76, 0.7, 3.01, 1.25, -1.37, -0.18, 2.32, -0.2])
+    # gender:
+    bm = male_bm.to(poses.device)
     body_parms = {
         'root_orient': poses[:, :3],  # controls the global root orientation
         'pose_body': poses[:, 3:66],
         'trans': trans,               # controls the global body position
+        'betas': torch.Tensor(np.repeat(beta[:10][np.newaxis], repeats=len(trans), axis=0)).to(poses.device),
+        'return_verts': True,
     }
     body_world = bm(**body_parms)
     jtr = body_world.Jtr #(..., 52, 3)
@@ -52,6 +70,12 @@ def get_jtr(bm, vecs):
     jtr[..., 0] *= -1
     jtr = jtr.reshape(vec.shape[0], vec.shape[1], 66)
 
+    verts =  body_world.v.detach().cpu().numpy()
+    verts = verts[:, :, [0, 2, 1]]
+    verts[..., 0] *= -1
+    save_data = {"verts" :verts, "faces": body_world.f.detach().cpu().numpy()}
+    breakpoint()
+    np.save('man_step_back.npy', save_data)
     return jtr
 
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps, scale_betas=1.):

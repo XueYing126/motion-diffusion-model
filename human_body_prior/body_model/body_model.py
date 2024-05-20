@@ -176,7 +176,7 @@ class BodyModel(nn.Module):
         return c2c(self.forward().v)
 
     def forward(self, root_orient=None, pose_body=None, pose_hand=None, pose_jaw=None, pose_eye=None, betas=None,
-                trans=None, dmpls=None, expression=None, v_template =None, joints=None, v_shaped=None, return_dict=False,  **kwargs):
+                trans=None, dmpls=None, expression=None, v_template =None, joints=None, v_shaped=None, return_dict=False, return_verts=False,  **kwargs):
         '''
 
         :param root_orient: Nx3
@@ -242,13 +242,13 @@ class BodyModel(nn.Module):
                             shapedirs=shapedirs, posedirs=self.posedirs,
                             J_regressor=self.J_regressor, parents=self.kintree_table[0].long(),
                             lbs_weights=self.weights, joints=joints, v_shaped=v_shaped,
-                            dtype=self.dtype)
+                            dtype=self.dtype, return_verts=return_verts)
 
         Jtr = Jtr + trans.unsqueeze(dim=1)
-        # verts = verts + trans.unsqueeze(dim=1)
+        verts = verts + trans.unsqueeze(dim=1)
 
         res = {}
-        # res['v'] = verts
+        res['v'] = verts
         res['f'] = self.f
         res['Jtr'] = Jtr  # Todo: ik can be made with vposer
         # res['bStree_table'] = self.kintree_table
