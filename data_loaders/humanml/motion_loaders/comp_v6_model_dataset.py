@@ -199,7 +199,7 @@ class CompMDMGeneratedDataset(Dataset):
 
                     sample = sample_fn(
                         model,
-                        motion.shape,
+                        torch.Size([32, 135, 1, 196]),
                         clip_denoised=clip_denoised,
                         model_kwargs=model_kwargs,
                         skip_timesteps=0,  # 0 is the default value - i.e. don't skip any step
